@@ -6,11 +6,12 @@ import { AuthenticatorSchema } from "./type";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { authenSchema } from "./type";
 import { InputValid } from "./input";
-import React, { useEffect, useMemo } from "react";
+import React, { useEffect } from "react";
 import { Bounce, ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { InformationPage } from "./information";
 import { FaceDetect } from "./face";
+import { Submit } from "./submit";
 
 export default function AuthenPage() {
   const methods = useForm<AuthenticatorSchema>({
@@ -23,6 +24,7 @@ export default function AuthenPage() {
       faceStep: false,
       faceDirection: "No face detected",
       lookingFor: "Straight",
+      isDone: false,
     },
   });
 
@@ -30,6 +32,7 @@ export default function AuthenPage() {
   const success = useWatch({ control, name: "success" });
   const fail = useWatch({ control, name: "fail" });
   const faceStep = useWatch({ control, name: "faceStep" });
+  const isDone = useWatch({ control, name: "isDone" });
 
   useEffect(() => {
     if (success) {
@@ -91,9 +94,15 @@ export default function AuthenPage() {
         </div>
       )}
 
-      {faceStep && (
+      {faceStep && !isDone && (
         <FormProvider {...methods}>
           <FaceDetect />
+        </FormProvider>
+      )}
+
+      {isDone && (
+        <FormProvider {...methods}>
+          <Submit />
         </FormProvider>
       )}
     </section>

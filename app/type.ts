@@ -11,6 +11,8 @@ export const authenSchema = z.object({
   ModelsLoaded: z.boolean(),
   faceDirection: z.string(),
   lookingFor: z.string(),
+  isDone: z.boolean(),
+  zipPath: z.string(),
 });
 
 export type AuthenticatorSchema = z.infer<typeof authenSchema>;

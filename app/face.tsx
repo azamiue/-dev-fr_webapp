@@ -4,6 +4,8 @@ import * as faceapi from "face-api.js";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AuthenticatorSchema } from "./type";
 import { useFormContext, useWatch } from "react-hook-form";
+import path from "path";
+import { convertNameEmail } from "@/config/name";
 
 export function FaceDetect() {
   const { control, setValue } = useFormContext<AuthenticatorSchema>();
@@ -11,11 +13,15 @@ export function FaceDetect() {
   const isModelsLoaded = useWatch({ control, name: "ModelsLoaded" });
   const faceDirection = useWatch({ control, name: "faceDirection" });
   const lookingFor = useWatch({ control, name: "lookingFor" });
+  const email = useWatch({ control, name: "email" });
+  const isDone = useWatch({ control, name: "isDone" });
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const lastCaptureTime = useRef<number>(0);
   const captureDebounceTime = 50;
+  const streamRef = useRef<MediaStream | null>(null);
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
 
   let straightCount = 0;
   let leftCount = 0;
@@ -23,10 +29,12 @@ export function FaceDetect() {
   let upCount = 0;
   let downCount = 0;
 
+  const publicDir = process.env.NEXT_PUBLIC_PUBLIC_URL;
+
   // Load models
   useEffect(() => {
     const loadModels = async () => {
-      const MODEL_URL = process.env.NEXT_PUBLIC_PUBLIC_URL + "/models";
+      const MODEL_URL = publicDir + "/models";
       await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
       await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
       await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
@@ -131,8 +139,11 @@ export function FaceDetect() {
             quality: 1,
           });
 
+          const name = convertNameEmail(email);
+
           const formData = new FormData();
           formData.append("image", blob, `${direction}-${Date.now()}.jpg`);
+          formData.append("name", name);
 
           const response = await fetch("/api/save-image", {
             method: "POST",
@@ -140,9 +151,10 @@ export function FaceDetect() {
           });
 
           if (response.ok) {
-            console.log(`${count} (${direction}). save img success`);
+            return true;
           } else {
             console.error("Failed to save image");
+            return false;
           }
         }
 
@@ -155,11 +167,20 @@ export function FaceDetect() {
 
   // zip img
   const zipImage = async () => {
+    const name = convertNameEmail(email);
+
+    const formData = new FormData();
+    formData.append("name", name);
+
     try {
-      const response = await fetch("/api/zip-images", { method: "POST" });
+      const response = await fetch("/api/zip-images", {
+        method: "POST",
+        body: formData,
+      });
+
       const data = await response.json();
       if (response.ok && data.success) {
-        console.log("Zip file created successfully");
+        setValue("isDone", true);
       } else {
         console.log("Failed to create zip file. Please check the server logs.");
       }
@@ -168,16 +189,35 @@ export function FaceDetect() {
     }
   };
 
+  // Function to stop the webcam
+  const stopWebcam = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current = null;
+    }
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+      intervalRef.current = null;
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
   // Activate camera
   useEffect(() => {
-    if (isModelsLoaded && videoRef.current) {
+    if (isModelsLoaded && videoRef.current && !isDone) {
       navigator.mediaDevices.getUserMedia({ video: {} }).then((stream) => {
         if (videoRef.current) {
           videoRef.current.srcObject = stream;
+          streamRef.current = stream;
         }
       });
     }
-  }, [isModelsLoaded]);
+    return () => {
+      stopWebcam(); // Clean up on component unmount
+    };
+  }, [isModelsLoaded, isDone]);
 
   // Modify handleVideoPlay to check counts accurately
   const handleVideoPlay = async () => {
@@ -218,12 +258,16 @@ export function FaceDetect() {
             const boundingBox = resizedDetections[0].detection.box;
 
             if (straightCount < 50 && direction === "Straight") {
-              captureAndSaveFrameFromVideo(
+              const event = await captureAndSaveFrameFromVideo(
                 boundingBox,
                 straightCount,
                 direction
               );
-              straightCount++;
+
+              if (event) {
+                straightCount++;
+              }
+
               if (straightCount === 50) {
                 setValue("lookingFor", "Left");
               }
@@ -232,8 +276,16 @@ export function FaceDetect() {
               leftCount < 50 &&
               direction === "Left"
             ) {
-              captureAndSaveFrameFromVideo(boundingBox, leftCount, direction);
-              leftCount++;
+              const event = await captureAndSaveFrameFromVideo(
+                boundingBox,
+                leftCount,
+                direction
+              );
+
+              if (event) {
+                leftCount++;
+              }
+
               if (leftCount === 50) {
                 setValue("lookingFor", "Right");
               }
@@ -242,8 +294,16 @@ export function FaceDetect() {
               rightCount < 50 &&
               direction === "Right"
             ) {
-              captureAndSaveFrameFromVideo(boundingBox, rightCount, direction);
-              rightCount++;
+              const event = await captureAndSaveFrameFromVideo(
+                boundingBox,
+                rightCount,
+                direction
+              );
+
+              if (event) {
+                rightCount++;
+              }
+
               if (rightCount === 50) {
                 setValue("lookingFor", "Up");
               }
@@ -252,8 +312,16 @@ export function FaceDetect() {
               upCount < 50 &&
               direction === "Up"
             ) {
-              captureAndSaveFrameFromVideo(boundingBox, upCount, direction);
-              upCount++;
+              const event = await captureAndSaveFrameFromVideo(
+                boundingBox,
+                upCount,
+                direction
+              );
+
+              if (event) {
+                upCount++;
+              }
+
               if (upCount === 50) {
                 setValue("lookingFor", "Down");
               }
@@ -262,11 +330,20 @@ export function FaceDetect() {
               downCount < 50 &&
               direction === "Down"
             ) {
-              captureAndSaveFrameFromVideo(boundingBox, downCount, direction);
-              downCount++;
+              const event = await captureAndSaveFrameFromVideo(
+                boundingBox,
+                downCount,
+                direction
+              );
+
+              if (event) {
+                downCount++;
+              }
+
               if (downCount === 50) {
                 setValue("lookingFor", "Done capturing all images");
                 zipImage();
+                setValue("zipPath", "app/src/zips");
               }
             } else if (downCount === 50) {
               console.log("Done capturing all images");
