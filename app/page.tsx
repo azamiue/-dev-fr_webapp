@@ -25,6 +25,7 @@ export default function AuthenPage() {
       faceDirection: "No face detected",
       lookingFor: "Straight",
       isDone: false,
+      isFinish: false,
     },
   });
 
@@ -33,10 +34,25 @@ export default function AuthenPage() {
   const fail = useWatch({ control, name: "fail" });
   const faceStep = useWatch({ control, name: "faceStep" });
   const isDone = useWatch({ control, name: "isDone" });
+  const isFinish = useWatch({ control, name: "isFinish" });
 
   useEffect(() => {
-    if (success) {
+    if (success && !isFinish) {
       toast.success("Email is valid!", {
+        position: "top-right",
+        autoClose: 2000,
+        hideProgressBar: true,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: true,
+        progress: undefined,
+        theme: "dark",
+        transition: Bounce,
+      });
+    }
+
+    if (isFinish) {
+      toast.success("Your Information Send Successfully", {
         position: "top-right",
         autoClose: 2000,
         hideProgressBar: true,
@@ -63,7 +79,7 @@ export default function AuthenPage() {
       });
       setValue("fail", false);
     }
-  }, [success, fail]);
+  }, [success, fail, isFinish]);
 
   return (
     <section>
@@ -90,7 +106,6 @@ export default function AuthenPage() {
               <InformationPage />
             </FormProvider>
           )}
-          <ToastContainer />
         </div>
       )}
 
@@ -100,11 +115,19 @@ export default function AuthenPage() {
         </FormProvider>
       )}
 
-      {isDone && (
+      {isDone && !isFinish && (
         <FormProvider {...methods}>
           <Submit />
         </FormProvider>
       )}
+
+      {isFinish && (
+        <div className="text-[30px] flex justify-center items-center">
+          Thanks For Submit! See You
+        </div>
+      )}
+
+      <ToastContainer />
     </section>
   );
 }

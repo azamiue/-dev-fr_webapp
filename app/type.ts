@@ -13,6 +13,7 @@ export const authenSchema = z.object({
   lookingFor: z.string(),
   isDone: z.boolean(),
   zipPath: z.string(),
+  isFinish: z.boolean(),
 });
 
 export type AuthenticatorSchema = z.infer<typeof authenSchema>;

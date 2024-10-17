@@ -9,12 +9,11 @@ export function Submit() {
   const email = useWatch({ control, name: "email" });
   const name = useWatch({ control, name: "name" });
   const organization = useWatch({ control, name: "organization" });
-  const zipPath = useWatch({ control, name: "zipPath" });
+  const loading = useWatch({ control, name: "loading" });
 
   const handleSubmit = async () => {
     const name = convertNameEmail(email);
-
-    console.log("name", name);
+    setValue("loading", true);
 
     try {
       const response = await fetch(`/api/forwardZip?fileName=${name}`, {
@@ -22,8 +21,8 @@ export function Submit() {
       });
 
       if (response.ok) {
-        const data = await response.json();
-        console.log(data);
+        setValue("loading", false);
+        setValue("isFinish", true);
       } else {
         console.error("Error:", response.status, await response.text());
       }
@@ -58,7 +57,7 @@ export function Submit() {
           value={organization}
           onChange={(e) => setValue("organization", e.target.value)}
         />
-        <Button color="primary" onClick={handleSubmit}>
+        <Button color="primary" onClick={handleSubmit} isLoading={loading}>
           Submit
         </Button>
       </div>
